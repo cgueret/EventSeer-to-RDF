@@ -1,0 +1,12 @@
+Select * From <http://linkedgeodata.org> {
+?s <http://www.w3.org/2000/01/rdf-schema#label> ?city.
+?s <http://linkedgeodata.org/property/is_in> ?country.
+FILTER ((lang(?city) = "" && ?city = "Banff") || (lang(?city) = "en" && ?city = "Banff"@en) )
+} limit 10
+
+
+    Select ?r From <http://linkedgeodata.org> { 
+        ?r <http://www.w3.org/2000/01/rdf-schema#label> "%s"@en.
+        ?r <http://linkedgeodata.org/property/is_in> ?country.
+        Filter regex(?country, "%s", "i")
+    }
