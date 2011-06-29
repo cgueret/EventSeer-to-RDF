@@ -6,11 +6,15 @@ Created on Mar 24, 2011
 from objects.events import Events #@UnusedImport
 from util.synchronize import TripleStore #@UnusedImport
 from objects.client import Client
+from objects.events import Event
 
 if __name__ == '__main__':
-    client = Client()
-    client.process('Event')
+    #client = Client()
+    #client.process('Event')
     
+    #event = Event('e/16445')
+    event = Event('e/16589')
+    #print event.get_cfp_data()
     # http://eventseer.net/p/christophe_gueret/
     # http://eventseer.net/t/data_integration/
     # http://eventseer.net/e/7690/

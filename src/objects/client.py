@@ -12,7 +12,7 @@ from objects import DCT
 from objects.topics import Topic
 from objects.events import Event
 import os
-import isodate
+
 
 
 class Client(object):

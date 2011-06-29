@@ -72,29 +72,60 @@ class Events(object):
         
 
 class Event(object):
-    def __init__(self, entity_name, entity_id):
+    def __init__(self, entity_id):
         '''
-        Constructor
+        Constructor 
+        @param entity_id: an event id such as 'e/16589'
         '''
-        self.event_id = entity_id
-        self.rdf_data = None
+        # Keep track of the ID
+        self.entity_id = entity_id
 
-        # Data for the CFPs         
+        # Containers for the data 
         self.cfp_data = None
-        self.cfp_file = 'data/' + self.event_id + '_cfp.txt'
+        self.rdf_data = None
         
-    def parse(self, record, entity_url):
+        # Set of cited persons and topics
+        self.topics_set = set()
+        self.persons_set = set()
+        
         # Get the document
-        document = BeautifulSoup(urllib2.urlopen("http://eventseer.net" + entity_url).read())
+        document = BeautifulSoup(urllib2.urlopen("http://eventseer.net/" + entity_id).read())
+        print "http://eventseer.net/" + entity_id
         
-        # Take care of the CFP
+        # Process the data
         self._process_cfp(document)
-        
-        # Take care of all the triples
-        self._process_data(record, document)
-    
-        # TODO return a list of cited topics, people, and organizations
+        self._process_data(document)
          
+    def get_named_graph(self):
+        '''
+        Return the named graph for storing the data
+        '''
+        return URIRef(NAMED_GRAPHS_BASE + self.entity_id + '.rdf')
+    
+    def get_topics(self):
+        '''
+        Return the set of topics related to this event
+        '''
+        return self.topics_set
+        
+    def get_persons(self):
+        '''
+        Return the set of persons related to this event
+        '''
+        return self.persons_set
+    
+    def get_cfp_data(self):
+        '''
+        Return the CFP data
+        '''
+        return self.cfp_data
+        
+    def get_rdf_data(self):
+        '''
+        Return the content of the RDF graph
+        '''
+        return self.rdf_data
+    
     def _process_cfp(self, document):
         '''
         Get the CFP out of a event page
@@ -115,19 +146,9 @@ class Event(object):
         self.cfp_data = re.sub(r'<a [^>]*>([^<]*)</a>', '\g<1>', self.cfp_data, flags=re.IGNORECASE)
         self.cfp_data = re.sub(r'^\n*', '', self.cfp_data, flags=re.IGNORECASE)
         
-    def get_cfp_data(self):
-        return self.cfp_data
-        
-    def get_rdf_data(self):
-        return self.rdf_data
-    
-    def named_graph(self):
-        return URIRef(NAMED_GRAPHS_BASE + self.event_id + '.rdf')
-        
-    def _process_data(self, event, document):
+    def _process_data(self, document):
         '''
         Creates the RDF graph describing the event
-        @param event: the JSON description of the event
         @param document: the DOM document of the event
         '''
         # Create the graph
@@ -139,28 +160,36 @@ class Event(object):
         graph.bind('dct', DCT)
         graph.bind('lode', LODE)
         
-        # Add the data for the event
-        resource_event = LDES[self.event_id]
+        # Init the event
+        resource_event = LDES[self.entity_id]
         graph.add((resource_event, RDF.type, SWC['AcademicEvent']))
-        if event['StartDate'] != None:
-            graph.add((resource_event, ICAL['dtstart'], Literal(datetime.strptime(event['StartDate'], "%d %b %Y"))))
-        if event['EndDate'] != None:
-            graph.add((resource_event, ICAL['dtend'], Literal(datetime.strptime(event['EndDate'], "%d %b %Y"))))
-        if event['City'] != None and event['Country'] != None:
-            city = get_location(event['City'], event['Country'])
-            if city != None:
-                city = URIRef(city)
-            else:
-                city = Literal(event['City'] + ", " + event['Country'])
-            graph.add((resource_event, FOAF['based_near'], city))
-                    
-        # Add the data for the CFP
-        resource_cfp = LDES[self.event_id + '_cfp']
-        graph.add((resource_cfp, RDF.type, CFP['CallForPapers']))
-        graph.add((resource_cfp, CFP['for'], resource_event))
-        graph.add((resource_cfp, CFP['details'], URIRef(BASE + 'data/' + self.event_id + '_cfp.txt')))
         
-        # Add the deadlines 
+        # Get the location
+        if document.find(text='City:') != None and document.find(text='Country:') != None:
+            city = document.find(text='City:').findParent().findNextSibling().renderContents()
+            country = document.find(text='Country:').findParent().findNextSibling().renderContents()
+            location = get_location(city, country)
+            if location == None:
+                location = Literal("%s, %s" % (city, country))
+            graph.add((resource_event, FOAF['based_near'], location))
+        
+        # Get the starting and ending dates
+        if document.find(text='Period:') != None:
+            text = document.find(text='Period:').findParent().findNextSibling().renderContents()
+            (month, day, year) = text.split(' ')
+            days = day[:-1].split('-')
+            begin = datetime.strptime("%s %s %s" % (days[0], month, year), "%d %B %Y")
+            graph.add((resource_event, ICAL['dtstart'], Literal(begin)))
+            if len(days) == 2:
+                end = datetime.strptime("%s %s %s" % (days[1], month, year), "%d %B %Y")
+                graph.add((resource_event, ICAL['dtend'], Literal(end)))
+                    
+        # Get the data for the CFP
+        graph.add((LDES[self.entity_id + '_cfp'], RDF.type, CFP['CallForPapers']))
+        graph.add((LDES[self.entity_id + '_cfp'], CFP['for'], LDES[self.entity_id]))
+        graph.add((LDES[self.entity_id + '_cfp'], CFP['details'], URIRef(BASE + 'data/' + self.entity_id + '_cfp.txt')))
+        
+        # Get the deadlines 
         deadlines = []
         for a in document.findAll('script'):
             res = re.search('var deadlineList = ([^;]*);', a.renderContents())
@@ -171,7 +200,7 @@ class Event(object):
                 deadlines = json.loads(txt)
         i = 0
         for deadline in deadlines:
-            resource_deadline = LDES[self.event_id + '_deadline-' + str(i)]
+            resource_deadline = LDES[self.entity_id + '_deadline-' + str(i)]
             graph.add((resource_deadline, RDF.type, ICAL['Vevent']))
             graph.add((resource_deadline, ICAL['dtstart'], Literal(datetime.strptime(deadline['Date'], "%d %b %Y"))))
             graph.add((resource_deadline, ICAL['dtend'], Literal(datetime.strptime(deadline['Date'], "%d %b %Y"))))
@@ -183,16 +212,18 @@ class Event(object):
         for link in document.find(id='cfp-content').findAll('a'):
             link = link.get('href')
             if link != None:
-                if link[:3] == '/t/':
-                    topic_id = link.replace('/t/', 'topic_').replace('/', '')
+                if link[:3] == '/t/' and link not in self.topics_set:
+                    self.topics_set.add(link)
+                    topic_id = 'topic_' + link[3:-1]
                     graph.add((resource_event, DCT['subject'], LDES[topic_id]))
-                if link[:3] == '/p/':
-                    person_id = link.replace('/p/', 'person_').replace('/', '')
+                if link[:3] == '/p/' and link not in self.persons_set:
+                    self.persons_set.add(link)
+                    person_id = 'person_' + link[3:-1]
                     graph.add((resource_event, LODE['involvedAgent'], LDES[person_id]))
         
         # Set the last modification date
-        resource = URIRef(NAMED_GRAPHS_BASE + self.event_id + '.rdf')
-        graph.add((resource, DCT['modified'], Literal(datetime.now()))) 
+        graph.add((self.get_named_graph(), DCT['modified'], Literal(datetime.now()))) 
         
+        # Save the data
         self.rdf_data = graph.serialize()
 
