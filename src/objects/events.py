@@ -6,7 +6,6 @@ Created on Mar 24, 2011
 import json
 import urllib2
 import re
-import os
 from BeautifulSoup import BeautifulSoup
 from rdflib import ConjunctiveGraph, Literal, RDF, URIRef
 from datetime import datetime
@@ -14,62 +13,6 @@ from objects import SWC, CFP, ICAL, FOAF, DCT, LODE, LDES, BASE, \
     NAMED_GRAPHS_BASE
 from util.linking import get_location
 
-class Events(object):
-    '''
-    This class is a wrapper for all the events contained on EventSeer.
-    It queries the service, creates instances of Event and saves the data on the disk
-    '''
-    def process(self):
-        '''
-        Call the main API and process all the events, page by page
-        '''
-        # Number of events to ask at once
-        PAGE_SIZE = 100
-
-        # Iterate over all the events
-        obj = self._get_events(0, 1)
-        for i in range(0, (obj['totalRecords'] / PAGE_SIZE) + 1):
-            # Load the page
-            print 'Get page %d' % i
-            page = self._get_events(i * PAGE_SIZE, PAGE_SIZE)
-            for record in page['records']:
-                self._process_record(record)
-
-    def _get_events(self, start, size):
-        '''
-        Return a list of event as a JSON object
-        @param start: start index
-        @param size: number of events to retrieve
-        '''
-        url = "http://eventseer.net/e/_category_list_json/?category=e&sort=Date&dir=desc&type=cat&dom_id=e_table&filter=all&deadlines=all&search=text&country=0&region=0&city=0&start=%d&results=%d" % (start, size)
-        return json.loads(urllib2.urlopen(url).read())        
-
-    def _process_record(self, record):
-        event_name = re.sub(r'<a [^>]*>([^<]*)</a>', '\g<1>', record['Event'], flags=re.IGNORECASE).replace('\n', '')
-        event_id = re.search('href="([^"]*)"', record['Event']).group(1).replace('/', '').replace('e', 'event_')
-        
-        # If not existent, generate
-        if not os.path.isfile('data/' + event_id + '.rdf'):
-            print '\t[GEN] %s - %s' % (event_id, event_name)
-            event = Event(record)
-            event.process()
-            del event
-            return
-        
-        # If updated, update
-        last_modification = datetime.strptime(record['Date'], "%d %b %Y")
-        if os.path.isfile('data/' + event_id + '.rdf'):
-            fileage = datetime.fromtimestamp(os.stat('data/' + event_id + '.rdf').st_mtime)
-            delta = last_modification - fileage
-            if delta.days > 0:
-                print '\t[UPD] %s - %s' % (event_id, event_name)
-                event = Event(record)
-                event.process()
-                del event
-                return
-
-        print '\t[OK] %s - %s' % (event_id, event_name)
-        
 
 class Event(object):
     def __init__(self, entity_id):
@@ -87,15 +30,14 @@ class Event(object):
         # Set of cited persons and topics
         self.topics_set = set()
         self.persons_set = set()
-        
-        # Get the document
-        document = BeautifulSoup(urllib2.urlopen("http://eventseer.net/" + entity_id).read())
-        print "http://eventseer.net/" + entity_id
-        
-        # Process the data
+    
+    def load_data(self):
+        # Get the document, process the data
+        document = BeautifulSoup(urllib2.urlopen("http://eventseer.net/" + self.entity_id).read())
         self._process_cfp(document)
         self._process_data(document)
-         
+        del document
+        
     def get_named_graph(self):
         '''
         Return the named graph for storing the data
