@@ -31,11 +31,10 @@ class Harvester(object):
         Call the main API and process all the events, page by page
         '''
         # Number of events to ask at once
-        PAGE_SIZE = 5
+        PAGE_SIZE = 100
         
         # Iterate over all the pages of events
-        #pages = (self._get_events(0, 1)['totalRecords'] / PAGE_SIZE) + 1
-        pages = 1
+        pages = (self._get_events(0, 1)['totalRecords'] / PAGE_SIZE) + 1
         for i in range(0, pages):
             print 'Get page %d' % i
             page = self._get_events(i * PAGE_SIZE, PAGE_SIZE)
@@ -51,7 +50,6 @@ class Harvester(object):
         
         # Get the last modification date from the end point
         server_version_date = self.triple_store.get_last_version_date(event)
-        server_version_date = None
         
         # Check the status of the event in the triple store
         if server_version_date == None or (event_last_update_date - server_version_date).days > 0:
