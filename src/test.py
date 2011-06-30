@@ -5,6 +5,7 @@ Created on 30 Jun 2011
 '''
 import re
 from objects.persons import Person
+from objects.events import Event
 
 if __name__ == '__main__':
     dates = {'August 24-26, 2011','October 31-November 3, 2011', 'September 5, 2011'}
@@ -13,6 +14,8 @@ if __name__ == '__main__':
         print parts
     print Person('p/alistair')
     print Person('p/cui_tao')
-    print Person('p/alistair_<a href')
+    #print Person('p/alistair_<a href')
            
-        
+    event = Event('e/16470')
+    event.load_data()
+    print event.get_rdf_data()
