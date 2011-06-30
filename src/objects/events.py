@@ -7,11 +7,11 @@ import json
 import urllib2
 import re
 from BeautifulSoup import BeautifulSoup
-from rdflib import ConjunctiveGraph, Literal, RDF, URIRef
+from rdflib import ConjunctiveGraph, Literal, RDF, RDFS, URIRef
 from datetime import datetime
-from objects import SWC, CFP, ICAL, FOAF, DCT, LODE, LDES, BASE, \
-    NAMED_GRAPHS_BASE
+from objects import SWC, CFP, ICAL, FOAF, DCT, LODE, LDES, BASE, NAMED_GRAPHS_BASE
 from util.linking import get_location
+from objects.topics import Topic
 
 
 class Event(object):
@@ -112,6 +112,10 @@ class Event(object):
         resource_event = LDES[self.get_resource_name()]
         graph.add((resource_event, RDF.type, SWC['AcademicEvent']))
         
+        # Get the title
+        title = document.find(id='inner_left').find('h1').text
+        graph.add((resource_event, RDFS.label, Literal(title)))
+          
         # Get the location
         if document.find(text='City:') != None and document.find(text='Country:') != None:
             city = document.find(text='City:').findParent().findNextSibling().renderContents()
@@ -162,9 +166,8 @@ class Event(object):
             link = link.get('href')
             if link != None:
                 if link[:3] == '/t/' and link not in self.topics_set:
-                    self.topics_set.add(link)
-                    topic_id = 'topic_' + link[3:-1]
-                    graph.add((resource_event, DCT['subject'], LDES[topic_id]))
+                    self.topics_set.add(link[1:-1])
+                    graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
                 if link[:3] == '/p/' and link not in self.persons_set:
                     self.persons_set.add(link)
                     person_id = 'person_' + link[3:-1]

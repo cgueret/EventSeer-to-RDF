@@ -8,9 +8,8 @@ import urllib2
 import re
 from datetime import datetime
 from objects.events import Event
-from SPARQLWrapper import SPARQLWrapper, JSON #@UnresolvedImport
-import pycurl
-import cStringIO
+from util.triplestore import TripleStore
+from objects.topics import Topic
 
 
 class Harvester(object):
@@ -19,13 +18,11 @@ class Harvester(object):
     EventSeer using the JSON API and save the 
     data into the triple store
     '''
-    def __init__(self, triple_store, data_directory):
+    def __init__(self, triple_store_url, data_directory):
         '''
         Constructor
         '''
-        self.triple_store = triple_store
-        self.sparql = SPARQLWrapper(triple_store + "/sparql")
-        self.sparql.setReturnFormat(JSON)
+        self.triple_store = TripleStore(triple_store_url)
         self.data_directory = data_directory
         
     def process_events(self):
@@ -52,54 +49,34 @@ class Harvester(object):
         event = Event(event_id)
         
         # Get the last modification date from the end point
+        server_version_date = self.triple_store.get_last_version_date(event)
         server_version_date = None
-        self.sparql.setQuery('select distinct ?d where { <%s> <http://purl.org/dc/terms/modified> ?d}' % event.get_named_graph())
-        results = self.sparql.query().convert()
-        d = [result["d"]["value"] for result in results["results"]["bindings"]]
-        if len(d) == 1:
-            server_version_date = datetime.strptime(d[0][:19], "%Y-%m-%dT%H:%M:%S")
-            
-        # Check if the event need to be saved
-        save_event = False
-        if server_version_date == None:
-            # The event is not in the triple store
-            print '\t[GEN] %s - %s' % (event_id, event_name)
-            save_event = True
-        else:
-            delta = event_last_update_date - server_version_date
-            if delta.days > 0:
-                # The event needs to be updated
-                print '\t[UPD] %s - %s' % (event_id, event_name)
-                save_event = True
-            else:
-                # The server version is up to date
-                print '\t[OK] %s - %s' % (event_id, event_name)
         
-        # If needed, process and save the event
-        save_event=True
-        if save_event:
-            # Get the data
-            event.load_data()
+        # Check the status of the event in the triple store
+        if server_version_date == None or (event_last_update_date - server_version_date).days > 0:
+            # The event is not in the triple store or needs to be updated
+            print '\t[UPD] %s - %s' % (event_id, event_name)
             
-            # Save the RDF data to the store
-            rdf = event.get_rdf_data()
-            c = pycurl.Curl()
-            target = str(self.triple_store + '/DAV/home/eventseer/rdf_sink/' + event.get_resource_name() + '.rdf')
-            c.setopt(pycurl.URL, target)
-            c.setopt(pycurl.UPLOAD, 1)
-            c.setopt(pycurl.USERAGENT, "eventseer")
-            c.setopt(pycurl.USERPWD, "eventseer")
-            c.setopt(pycurl.READFUNCTION, cStringIO.StringIO(rdf).read)
-            c.setopt(pycurl.INFILESIZE, len(rdf))
-            response = cStringIO.StringIO()
-            c.setopt(pycurl.WRITEFUNCTION, response.write)
-            c.perform()
-            c.close()
+            # Save the RDF data of the event
+            event.load_data()
+            self.triple_store.save_rdf_data(event)
             
             # Save the CFP from the call    
             file = open(self.data_directory + '/' + event.get_resource_name() + '_cfp.txt', 'w')
             file.write(event.get_cfp_data())
             file.close()
+            
+            # Add the topics not already existing
+            for t in event.get_topics():
+                topic = Topic(t)
+                if self.triple_store.get_last_version_date(topic) == None:
+                    print '\t\t[UPD] %s' % t
+                    topic.load_data()
+                    self.triple_store.save_rdf_data(topic)
+                
+        else:
+            # The server version is up to date
+            print '\t[OK] %s - %s' % (event_id, event_name)
         
     def _get_events(self, start, size):
         '''
