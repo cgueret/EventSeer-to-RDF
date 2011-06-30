@@ -10,6 +10,7 @@ from datetime import datetime
 from objects.events import Event
 from util.triplestore import TripleStore
 from objects.topics import Topic
+from objects.persons import Person
 
 
 class Harvester(object):
@@ -70,10 +71,17 @@ class Harvester(object):
             for t in event.get_topics():
                 topic = Topic(t)
                 if self.triple_store.get_last_version_date(topic) == None:
-                    print '\t\t[UPD] %s' % t
+                    print '\t\t[UPD-TOPIC] %s' % t
                     topic.load_data()
                     self.triple_store.save_rdf_data(topic)
-                
+            
+            # Update the data about all the persons concerned
+            for p in event.get_persons():
+                print '\t\t[UPD-PERSON] %s' % p
+                person = Person(p)
+                person.load_data()
+                self.triple_store.save_rdf_data(person)
+            
         else:
             # The server version is up to date
             print '\t[OK] %s - %s' % (event_id, event_name)

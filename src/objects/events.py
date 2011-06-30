@@ -12,6 +12,7 @@ from datetime import datetime
 from objects import SWC, CFP, ICAL, FOAF, DCT, LODE, LDES, BASE, NAMED_GRAPHS_BASE
 from util.linking import get_location
 from objects.topics import Topic
+from objects.persons import Person
 
 
 class Event(object):
@@ -170,8 +171,7 @@ class Event(object):
                     graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
                 if link[:3] == '/p/' and link not in self.persons_set:
                     self.persons_set.add(link)
-                    person_id = 'person_' + link[3:-1]
-                    graph.add((resource_event, LODE['involvedAgent'], LDES[person_id]))
+                    graph.add((resource_event, LODE['involvedAgent'], LDES[Person(link[1:-1]).get_resource_name()]))
         
         # Set the last modification date
         graph.add((self.get_named_graph(), DCT['modified'], Literal(datetime.now()))) 
