@@ -129,13 +129,20 @@ class Event(object):
         # Get the starting and ending dates
         if document.find(text='Period:') != None:
             text = document.find(text='Period:').findParent().findNextSibling().renderContents()
-            (month, day, year) = text.split(' ')
-            days = day[:-1].split('-')
-            begin = datetime.strptime("%s %s %s" % (days[0], month, year), "%d %B %Y")
-            graph.add((resource_event, ICAL['dtstart'], Literal(begin)))
-            if len(days) == 2:
-                end = datetime.strptime("%s %s %s" % (days[1], month, year), "%d %B %Y")
-                graph.add((resource_event, ICAL['dtend'], Literal(end)))
+            parts = re.search('(?P<begin>[^-,]*)(-(?P<end>[^,]*))?, (?P<year>\d{4})', text).groupdict()
+            if 'begin' in parts and 'year' in parts:
+                (month, start_day) = parts['begin'].split(' ')
+                begin_date = datetime.strptime("%s %s %s" % (start_day, month, parts['year']), "%d %B %Y")
+                graph.add((resource_event, ICAL['dtstart'], Literal(begin_date)))
+                if 'end' in parts:
+                    end_parts = parts['end'].split(' ')
+                    end_date = None
+                    if len(end_parts) == 2:
+                        end_date = datetime.strptime("%s %s %s" % (end_parts[1], end_parts[0], parts['year']), "%d %B %Y")
+                    elif len(end_parts) == 1:
+                        end_date = datetime.strptime("%s %s %s" % (end_parts[0], month, parts['year']), "%d %B %Y")
+                    if end_date != None:
+                        graph.add((resource_event, ICAL['dtend'], Literal(end_date)))
                     
         # Get the data for the CFP
         resource_cfp = LDES[self.get_resource_name() + "_cfp"] 
