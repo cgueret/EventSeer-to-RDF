@@ -23,6 +23,8 @@ class Event(object):
         '''
         # Keep track of the ID
         self.entity_id = entity_id
+        if re.match(r"^e/[0-9]+$", entity_id) == None:
+            raise Exception('Invalid event identifier %s' % entity_id)
 
         # Containers for the data 
         self.cfp_data = None
@@ -130,11 +132,11 @@ class Event(object):
         if document.find(text='Period:') != None:
             text = document.find(text='Period:').findParent().findNextSibling().renderContents()
             parts = re.search('(?P<begin>[^-,]*)(-(?P<end>[^,]*))?, (?P<year>\d{4})', text).groupdict()
-            if 'begin' in parts and 'year' in parts:
+            if parts['begin'] != None and parts['year'] != None:
                 (month, start_day) = parts['begin'].split(' ')
                 begin_date = datetime.strptime("%s %s %s" % (start_day, month, parts['year']), "%d %B %Y")
                 graph.add((resource_event, ICAL['dtstart'], Literal(begin_date)))
-                if 'end' in parts:
+                if parts['end'] != None:
                     end_parts = parts['end'].split(' ')
                     end_date = None
                     if len(end_parts) == 2:
@@ -174,11 +176,19 @@ class Event(object):
             link = link.get('href')
             if link != None:
                 if link[:3] == '/t/' and link not in self.topics_set:
-                    self.topics_set.add(link[1:-1])
-                    graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
+                    try:
+                        graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
+                        self.topics_set.add(link[1:-1])
+                    except:
+                        # Ignore bad topic links
+                        pass
                 if link[:3] == '/p/' and link not in self.persons_set:
-                    self.persons_set.add(link)
-                    graph.add((resource_event, LODE['involvedAgent'], LDES[Person(link[1:-1]).get_resource_name()]))
+                    try:
+                        graph.add((resource_event, LODE['involvedAgent'], LDES[Person(link[1:-1]).get_resource_name()]))
+                        self.persons_set.add(link[1:-1])
+                    except:
+                        # Ignore bad person link
+                        pass
         
         # Set the last modification date
         graph.add((self.get_named_graph(), DCT['modified'], Literal(datetime.now()))) 

@@ -4,6 +4,7 @@ Created on 30 Jun 2011
 @author: cgueret
 '''
 import urllib2
+import re
 from BeautifulSoup import BeautifulSoup
 from objects import SWC, CFP, ICAL, FOAF, DCT, LODE, LDES, NAMED_GRAPHS_BASE
 from rdflib import ConjunctiveGraph, Literal, RDF, URIRef
@@ -16,6 +17,9 @@ class Person(object):
         Constructor 
         @param entity_id: an person id such as 'p/pieter_de_leenheer'
         '''
+        if re.match(r"^p/[-\w]+$", entity_id) == None:
+            raise Exception('Invalid person identifier %s' % entity_id)
+        
         # Keep track of the ID
         self.entity_id = entity_id
 
@@ -72,9 +76,15 @@ class Person(object):
         for link in document.find(id='inner_left').find('p').findAll('a'):
             link = link.get('href')
             if link != None and link[:3] == '/t/':
-                graph.add((person_resource, FOAF['topic_interest'], LDES[Topic(link[1:-1]).get_resource_name()]))
+                try:
+                    graph.add((person_resource, FOAF['topic_interest'], LDES[Topic(link[1:-1]).get_resource_name()]))
+                except:
+                    pass
             if link != None and link[:3] == '/p/' and link[1:-1] != self.entity_id:
-                graph.add((person_resource, FOAF['knows'], LDES[Person(link[1:-1]).get_resource_name()]))
+                try:
+                    graph.add((person_resource, FOAF['knows'], LDES[Person(link[1:-1]).get_resource_name()]))
+                except:
+                    pass
                 
         # Set the last modification date
         graph.add((self.get_named_graph(), DCT['modified'], Literal(datetime.now()))) 
