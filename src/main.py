@@ -10,7 +10,7 @@ from objects.events import Event
 from harvester.harvester import Harvester
 
 if __name__ == '__main__':
-    harvester = Harvester("http://localhost:9090/sparql/", "data/")
+    harvester = Harvester("http://eculture2.cs.vu.nl:8890", "data/")
     harvester.process_events()
     #client = Client()
     #client.process('Event')

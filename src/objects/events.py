@@ -42,7 +42,13 @@ class Event(object):
         '''
         Return the named graph for storing the data
         '''
-        return URIRef(NAMED_GRAPHS_BASE + self.entity_id + '.rdf')
+        return URIRef(NAMED_GRAPHS_BASE + self.get_resource_name() + '.rdf')
+    
+    def get_resource_name(self):
+        '''
+        Return the named graph for storing the data
+        '''
+        return 'event_' + self.entity_id[2:]
     
     def get_topics(self):
         '''
@@ -103,7 +109,7 @@ class Event(object):
         graph.bind('lode', LODE)
         
         # Init the event
-        resource_event = LDES[self.entity_id]
+        resource_event = LDES[self.get_resource_name()]
         graph.add((resource_event, RDF.type, SWC['AcademicEvent']))
         
         # Get the location
@@ -127,9 +133,10 @@ class Event(object):
                 graph.add((resource_event, ICAL['dtend'], Literal(end)))
                     
         # Get the data for the CFP
-        graph.add((LDES[self.entity_id + '_cfp'], RDF.type, CFP['CallForPapers']))
-        graph.add((LDES[self.entity_id + '_cfp'], CFP['for'], LDES[self.entity_id]))
-        graph.add((LDES[self.entity_id + '_cfp'], CFP['details'], URIRef(BASE + 'data/' + self.entity_id + '_cfp.txt')))
+        resource_cfp = LDES[self.get_resource_name() + "_cfp"] 
+        graph.add((resource_cfp, RDF.type, CFP['CallForPapers']))
+        graph.add((resource_cfp, CFP['for'], LDES[self.entity_id]))
+        graph.add((resource_cfp, CFP['details'], URIRef(BASE + 'data/' + self.get_resource_name() + '_cfp.txt')))
         
         # Get the deadlines 
         deadlines = []
@@ -142,7 +149,7 @@ class Event(object):
                 deadlines = json.loads(txt)
         i = 0
         for deadline in deadlines:
-            resource_deadline = LDES[self.entity_id + '_deadline-' + str(i)]
+            resource_deadline = LDES[self.get_resource_name() + '_deadline_' + str(i)]
             graph.add((resource_deadline, RDF.type, ICAL['Vevent']))
             graph.add((resource_deadline, ICAL['dtstart'], Literal(datetime.strptime(deadline['Date'], "%d %b %Y"))))
             graph.add((resource_deadline, ICAL['dtend'], Literal(datetime.strptime(deadline['Date'], "%d %b %Y"))))
