@@ -56,6 +56,29 @@ class Harvester(object):
             # The event is not in the triple store or needs to be updated
             print '\t[UPD] %s - %s' % (event_id, event_name)
             
+            # Add the topics not already existing
+            for t in event.get_topics():
+                topic = Topic(t)
+                if self.triple_store.get_last_version_date(topic) == None:
+                    try:
+                        print '\t\t[UPD-TOPIC] %s' % t
+                        topic.load_data()
+                        self.triple_store.save_rdf_data(topic)
+                    except:
+                        # It's ok if we miss one
+                        pass
+                    
+            # Update the data about all the persons concerned
+            for p in event.get_persons():
+                try:
+                    print '\t\t[UPD-PERSON] %s' % p
+                    person = Person(p)
+                    person.load_data()
+                    self.triple_store.save_rdf_data(person)
+                except:
+                    # It's ok if we miss one
+                    pass
+                
             # Save the RDF data of the event
             event.load_data()
             self.triple_store.save_rdf_data(event)
@@ -64,21 +87,6 @@ class Harvester(object):
             file = open(self.data_directory + '/' + event.get_resource_name() + '_cfp.txt', 'w')
             file.write(event.get_cfp_data())
             file.close()
-            
-            # Add the topics not already existing
-            for t in event.get_topics():
-                topic = Topic(t)
-                if self.triple_store.get_last_version_date(topic) == None:
-                    print '\t\t[UPD-TOPIC] %s' % t
-                    topic.load_data()
-                    self.triple_store.save_rdf_data(topic)
-            
-            # Update the data about all the persons concerned
-            for p in event.get_persons():
-                print '\t\t[UPD-PERSON] %s' % p
-                person = Person(p)
-                person.load_data()
-                self.triple_store.save_rdf_data(person)
             
         else:
             # The server version is up to date
