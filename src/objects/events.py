@@ -27,7 +27,7 @@ class Event(object):
             raise Exception('Invalid event identifier %s' % entity_id)
 
         # Containers for the data 
-        self.cfp_data = None
+        self.cfp_data = ""
         self.rdf_data = None
         
         # Set of cited persons and topics
@@ -116,8 +116,9 @@ class Event(object):
         graph.add((resource_event, RDF.type, SWC['AcademicEvent']))
         
         # Get the title
-        title = document.find(id='inner_left').find('h1').text
-        graph.add((resource_event, RDFS.label, Literal(title)))
+        if document.find(id='inner_left') != None:
+            title = document.find(id='inner_left').find('h1').text
+            graph.add((resource_event, RDFS.label, Literal(title)))
           
         # Get the location
         if document.find(text='City:') != None and document.find(text='Country:') != None:
@@ -172,23 +173,24 @@ class Event(object):
             i = i + 1
             
         # Add the topics and persons
-        for link in document.find(id='cfp-content').findAll('a'):
-            link = link.get('href')
-            if link != None:
-                if link[:3] == '/t/' and link not in self.topics_set:
-                    try:
-                        graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
-                        self.topics_set.add(link[1:-1])
-                    except:
-                        # Ignore bad topic links
-                        pass
-                if link[:3] == '/p/' and link not in self.persons_set:
-                    try:
-                        graph.add((resource_event, LODE['involvedAgent'], LDES[Person(link[1:-1]).get_resource_name()]))
-                        self.persons_set.add(link[1:-1])
-                    except:
-                        # Ignore bad person link
-                        pass
+        if document.find(id='cfp-content') != None:
+            for link in document.find(id='cfp-content').findAll('a'):
+                link = link.get('href')
+                if link != None:
+                    if link[:3] == '/t/' and link not in self.topics_set:
+                        try:
+                            graph.add((resource_event, DCT['subject'], LDES[Topic(link[1:-1]).get_resource_name()]))
+                            self.topics_set.add(link[1:-1])
+                        except:
+                            # Ignore bad topic links
+                            pass
+                    if link[:3] == '/p/' and link not in self.persons_set:
+                        try:
+                            graph.add((resource_event, LODE['involvedAgent'], LDES[Person(link[1:-1]).get_resource_name()]))
+                            self.persons_set.add(link[1:-1])
+                        except:
+                            # Ignore bad person link
+                            pass
         
         # Set the last modification date
         graph.add((self.get_named_graph(), DCT['modified'], Literal(datetime.now()))) 
